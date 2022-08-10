@@ -22,6 +22,7 @@ package de.themoep.minedown.adventure;
  * SOFTWARE.
  */
 
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.BuildableComponent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.ComponentBuilder;
@@ -42,7 +43,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class Util {
-
+    public static final String KEY_PATTERN = "([a-z0-9_\\-.]+:)?[a-z0-9_\\-./]+";
     private static final Pattern WRAP_PATTERN = Pattern.compile(" ", Pattern.LITERAL);
 
     /**
@@ -476,6 +477,10 @@ public class Util {
         }
 
         return colors;
+    }
+
+    public static String renderKeyAsLang(Key key) {
+        return key.asString().replace(':', '.');
     }
 
     public enum TextControl implements TextFormat {

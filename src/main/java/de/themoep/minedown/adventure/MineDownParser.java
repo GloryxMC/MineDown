@@ -22,7 +22,9 @@ package de.themoep.minedown.adventure;
  * SOFTWARE.
  */
 
+import net.kyori.adventure.Adventure;
 import net.kyori.adventure.key.Key;
+import net.kyori.adventure.key.Namespaced;
 import net.kyori.adventure.nbt.api.BinaryTagHolder;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.ComponentBuilder;
@@ -32,6 +34,8 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.format.TextFormat;
+import net.kyori.adventure.translation.Translatable;
+import org.intellij.lang.annotations.Subst;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +60,7 @@ import static de.themoep.minedown.adventure.MineDown.FORMAT_PREFIX;
 import static de.themoep.minedown.adventure.MineDown.HOVER_PREFIX;
 import static de.themoep.minedown.adventure.MineDown.INSERTION_PREFIX;
 
+@SuppressWarnings("UnusedReturnValue")
 public class MineDownParser {
     private static final String RAINBOW = "rainbow";
 
@@ -117,6 +122,7 @@ public class MineDownParser {
     private boolean formattingIsLegacy = false;
     private ClickEvent clickEvent;
     private HoverEvent hoverEvent;
+    private Key lang;
 
     public MineDownParser() {
         reset();
@@ -124,6 +130,7 @@ public class MineDownParser {
 
     /**
      * Create a ComponentBuilder by parsing a {@link MineDown} message
+     *
      * @param message The message to parse
      * @return The parsed ComponentBuilder
      * @throws IllegalArgumentException Thrown when a parsing error occurs and lenient is set to false
@@ -138,6 +145,7 @@ public class MineDownParser {
             boolean isColorCode = isEnabled(Option.LEGACY_COLORS)
                     && i + 1 < message.length() && (c == '§' || c == colorChar());
             boolean isEvent = false;
+            boolean isLang = false;
             if (isEnabled(Option.ADVANCED_FORMATTING) && c == '[') {
                 int nextEventClose = Util.indexOfNotEscaped(message, "](", i + 1);
                 if (nextEventClose != -1 && nextEventClose + 2 < message.length()) {
@@ -164,9 +172,10 @@ public class MineDownParser {
                     }
                 }
             }
+            String s = String.valueOf(c) + c;
             boolean isFormatting = isEnabled(Option.SIMPLE_FORMATTING)
                     && (c == '_' || c == '*' || c == '~' || c == '?' || c == '#') && Util.isDouble(message, i)
-                    && message.indexOf(String.valueOf(c) + String.valueOf(c), i + 2) != -1;
+                    && message.indexOf(s, i + 2) != -1;
 
             if (escaped) {
                 escaped = false;
@@ -294,7 +303,7 @@ public class MineDownParser {
 
                 // Simple formatting
             } else if (isFormatting) {
-                int endIndex = message.indexOf(String.valueOf(c) + String.valueOf(c), i + 2);
+                int endIndex = message.indexOf(s, i + 2);
                 Map<TextDecoration, Boolean> formats = new HashMap<>(format());
                 if (!isFiltered(Option.SIMPLE_FORMATTING)) {
                     formats.put(MineDown.getFormatFromChar(c), true);
@@ -365,8 +374,10 @@ public class MineDownParser {
         }
 
         if (applicableColors.size() > 1) {
-            // Colors need to have a gradient/rainbow applied
-            builder = Component.text();
+            if (lang == null)
+                // Colors need to have a gradient/rainbow applied
+                builder = Component.text();
+            else builder = Component.translatable().key(Util.renderKeyAsLang(lang));
         } else {
             // Single color mode
             builder = Component.text(value().toString()).toBuilder();
@@ -427,6 +438,7 @@ public class MineDownParser {
 
     /**
      * Parse a {@link MineDown} event string
+     *
      * @param text        The display text
      * @param definitions The event definition string
      * @return The parsed ComponentBuilder for this string
@@ -670,7 +682,7 @@ public class MineDownParser {
         return value.toString();
     }
 
-    protected ComponentBuilder<?,?> builder() {
+    protected ComponentBuilder<?, ?> builder() {
         return this.builder;
     }
 
@@ -692,6 +704,7 @@ public class MineDownParser {
         this.font = font;
         return this;
     }
+
     protected String font() {
         return this.font;
     }
@@ -776,6 +789,7 @@ public class MineDownParser {
 
     /**
      * Parse a color/format definition
+     *
      * @param colorString The string to parse
      * @param prefix      The color prefix e.g. ampersand (&amp;)
      * @param lenient     Whether or not to accept malformed strings
@@ -820,6 +834,7 @@ public class MineDownParser {
 
     /**
      * Copy all the parser's setting to a new instance
+     *
      * @return The new parser instance with all settings copied
      */
     public MineDownParser copy() {
@@ -828,6 +843,7 @@ public class MineDownParser {
 
     /**
      * Copy all the parser's setting to a new instance
+     *
      * @param formatting Should the formatting be copied too?
      * @return The new parser instance with all settings copied
      */
@@ -837,6 +853,7 @@ public class MineDownParser {
 
     /**
      * Copy all the parser's settings from another parser.
+     *
      * @param from The parser to copy from
      * @return This parser's instance
      */
@@ -846,6 +863,7 @@ public class MineDownParser {
 
     /**
      * Copy all the parser's settings from another parser.
+     *
      * @param from       The parser to copy from
      * @param formatting Should the formatting be copied too?
      * @return This parser's instance
@@ -872,7 +890,8 @@ public class MineDownParser {
 
     /**
      * Reset the parser state to the start
-     * @return The parser's instance
+     *
+     * @return The parser's instance, for chaining convenience.
      */
     public MineDownParser reset() {
         builder = null;
@@ -884,12 +903,14 @@ public class MineDownParser {
         format = new HashMap<>();
         clickEvent = null;
         hoverEvent = null;
+        lang = null;
         return this;
     }
 
     /**
-     * Whether or not to translate legacy color codes (Default: true)
-     * @return Whether or not to translate legacy color codes (Default: true)
+     * Whether to translate legacy color codes (Default: true)
+     *
+     * @return Whether to translate legacy color codes (Default: true)
      * @deprecated Use {@link #isEnabled(Option)} instead
      */
     @Deprecated
@@ -899,6 +920,7 @@ public class MineDownParser {
 
     /**
      * Whether or not to translate legacy color codes
+     *
      * @return The parser
      * @deprecated Use {@link #enable(Option)} and {@link #disable(Option)} instead
      */
@@ -909,6 +931,7 @@ public class MineDownParser {
 
     /**
      * Check whether or not an option is enabled
+     *
      * @param option The option to check for
      * @return <code>true</code> if it's enabled; <code>false</code> if not
      */
@@ -918,6 +941,7 @@ public class MineDownParser {
 
     /**
      * Enable an option.
+     *
      * @param option The option to enable
      * @return The parser instace
      */
@@ -930,6 +954,7 @@ public class MineDownParser {
      * Disable an option. Disabling an option will stop the parser from replacing
      * this option's chars in the string. Use {@link #filter(Option)} to completely
      * remove the characters used by this option from the message instead.
+     *
      * @param option The option to disable
      * @return The parser instace
      */
@@ -940,6 +965,7 @@ public class MineDownParser {
 
     /**
      * Check whether or not an option is filtered
+     *
      * @param option The option to check for
      * @return <code>true</code> if it's enabled; <code>false</code> if not
      */
@@ -950,6 +976,7 @@ public class MineDownParser {
     /**
      * Filter an option. This enables the parsing of an option and completely
      * removes the characters of this option from the string.
+     *
      * @param option The option to add to the filter
      * @return The parser instance
      */
@@ -961,6 +988,7 @@ public class MineDownParser {
 
     /**
      * Unfilter an option. Does not enable it!
+     *
      * @param option The option to remove from the filter
      * @return The parser instance
      */
@@ -971,6 +999,7 @@ public class MineDownParser {
 
     /**
      * Escape formatting in the string depending on this parser's options. This will escape backslashes too!
+     *
      * @param string The string to escape
      * @return The string with all formatting of this parser escaped
      */
@@ -1007,11 +1036,16 @@ public class MineDownParser {
         /**
          * Whether or not to translate legacy color codes (Default: true)
          */
-        LEGACY_COLORS
+        LEGACY_COLORS,
+        /**
+         * Whether to parse language keys
+         */
+        LANGUAGE
     }
 
     /**
      * Get The character to use as a special color code.
+     *
      * @return The color character (Default: ampersand &amp;)
      */
     public char colorChar() {
@@ -1020,6 +1054,7 @@ public class MineDownParser {
 
     /**
      * Set the character to use as a special color code.
+     *
      * @param colorChar The color char (Default: ampersand &amp;)
      * @return The MineDownParser instance
      */
@@ -1030,6 +1065,7 @@ public class MineDownParser {
 
     /**
      * Get all enabled options that will be used when parsing
+     *
      * @return a modifiable set of options
      */
     public Set<Option> enabledOptions() {
@@ -1038,6 +1074,7 @@ public class MineDownParser {
 
     /**
      * Set all enabled options that will be used when parsing at once, replaces any existing options
+     *
      * @param enabledOptions The enabled options
      * @return The MineDownParser instance
      */
@@ -1048,6 +1085,7 @@ public class MineDownParser {
 
     /**
      * Get all filtered options that will be parsed and then removed from the string
+     *
      * @return a modifiable set of options
      */
     public Set<Option> filteredOptions() {
@@ -1057,6 +1095,7 @@ public class MineDownParser {
     /**
      * Set all filtered options that will be parsed and then removed from the string at once,
      * replaces any existing options
+     *
      * @param filteredOptions The filtered options
      * @return The MineDownParser instance
      */
@@ -1067,6 +1106,7 @@ public class MineDownParser {
 
     /**
      * Get whether to accept malformed strings or not
+     *
      * @return whether or not the accept malformed strings (Default: false)
      */
     public boolean lenient() {
@@ -1075,6 +1115,7 @@ public class MineDownParser {
 
     /**
      * Set whether to accept malformed strings or not
+     *
      * @param lenient Set whether or not to accept malformed string (Default: false)
      * @return The MineDownParser instance
      */
@@ -1085,6 +1126,7 @@ public class MineDownParser {
 
     /**
      * Get whether or not urls in strings are detected and get events added to them?
+     *
      * @return whether or not urls are detected (Default: true)
      */
     public boolean urlDetection() {
@@ -1093,6 +1135,7 @@ public class MineDownParser {
 
     /**
      * Set whether or not to detect urls in strings and add events to them?
+     *
      * @param urlDetection Whether or not to detect urls in strings  (Default: true)
      * @return The MineDownParser instance
      */
@@ -1110,6 +1153,7 @@ public class MineDownParser {
 
     /**
      * Set the text to display when hovering over an URL. Has a %url% placeholder.
+     *
      * @param urlHoverText The url hover text
      * @return The MineDownParser instance
      */
@@ -1120,6 +1164,7 @@ public class MineDownParser {
 
     /**
      * Get whether or not to automatically add http to values of open_url when there doesn't exist any?
+     *
      * @return whether or not to automatically add http to values of open_url when there doesn't exist any? (Default: true)
      */
     public boolean autoAddUrlPrefix() {
@@ -1128,6 +1173,7 @@ public class MineDownParser {
 
     /**
      * Set whether or not to automatically add http to values of open_url when there doesn't exist any?
+     *
      * @param autoAddUrlPrefix Whether or not automatically add http to values of open_url when there doesn't exist any? (Default: true)
      * @return The MineDownParser instance
      */
@@ -1149,11 +1195,35 @@ public class MineDownParser {
      * Set the max width the hover text should have.
      * Minecraft itself will wrap after 60 characters.
      * Won't apply if the text already includes new lines.
+     *
      * @param hoverTextWidth The url hover text length
      * @return The MineDownParser instance
      */
     public MineDownParser hoverTextWidth(int hoverTextWidth) {
         this.hoverTextWidth = hoverTextWidth;
+        return this;
+    }
+
+    /**
+     * Set the language key to style.
+     *
+     * @param key The language key
+     * @return The changed instance, for chaining convenience
+     */
+    public MineDownParser lang(Key key) {
+        this.lang = key;
+        return this;
+    }
+
+    /**
+     * A shorter version of {@link MineDownParser#lang(Key)},
+     * that sets the namespace to {@link Key#MINECRAFT_NAMESPACE}.
+     *
+     * @param path The path to the language key.
+     * @return The changed instance, for chaining convenience.
+     */
+    public MineDownParser lang(@org.intellij.lang.annotations.Pattern(Util.KEY_PATTERN) String path) {
+        this.lang(Key.key(Key.MINECRAFT_NAMESPACE, path));
         return this;
     }
 
